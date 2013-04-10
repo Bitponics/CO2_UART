@@ -41,8 +41,8 @@
 #include "RTClib.h"
 #include "Adafruit_LEDBackpack.h"
 #include "Adafruit_GFX.h"
-#include <SD.h>
-//#include <SdFat.h>
+//#include <SD.h>
+#include <SdFat.h>
 
 
 
@@ -50,10 +50,10 @@
 SoftwareSerial mySerial(A0, A1); // RX, TX respectively
 Adafruit_7segment matrix = Adafruit_7segment();
 RTC_DS1307 RTC;
-//SdFat sd;
-//SdFile myFile;
+SdFat sd;
+SdFile myFile;
 
-#define calibrationTime 60000 //warm up time for C02 sensor (3min = 180sec)
+#define calibrationTime 600 //warm up time for C02 sensor (3min = 180sec)
 
 
 
@@ -86,6 +86,8 @@ void setup() {
   RTC.begin();
   matrix.setBrightness(5); //0-15 (11 drawing 50mA of current from the NCP1402-5V Step-Up Breakout)
   pinMode(10, OUTPUT);
+
+  if (!sd.init(SPI_HALF_SPEED, chipSelectPin)) sd.initErrorHalt();
 
   //ADJUST THE DATE AND INITIALIZE SD CARD
   if (! RTC.isrunning())
@@ -176,30 +178,38 @@ void serialEvent() {
 void logData()
 {
 
-  if (!myFile.open("datalog1.csv", O_RDWR | O_CREAT | O_AT_END)) {
-    sd.errorHalt("opening datalog1.csv for write failed");
+  if (!myFile.open("datalog1.txt", O_RDWR | O_CREAT | O_AT_END)) {
+    sd.errorHalt("opening test.txt for write failed");
   }
+  //Serial.println("card opened");  
   myFile.print(ppmString);
   myFile.print(',');
   myFile.print(timeStamp);
   myFile.print(','); 
   myFile.print(voltage);
-  myFile.println();
-  myFile.close();   
+  myFile.printrln();
+  myFile.close();
+ // Serial.println("card closed");  
+
 }
 
 void readSd()
 {
-
-  if (!myFile.open("datalog1.csv", O_READ)) {
-    sd.errorHalt("opening datalog1.csv for read failed");
-    // read from the file until there's nothing else in it:
-    int data;
-    while ((data = myFile.read()) > 0) Serial.write(data);
-    // close the file:
-    myFile.close();
+  // re-open the file for reading:
+  if (!myFile.open("datalog1.txt", O_READ)) {
+    sd.errorHalt("opening test.txt for read failed");
   }
+  Serial.println("test.txt:");
+
+  // read from the file until there's nothing else in it:
+  int data;
+  while ((data = myFile.read()) > 0) Serial.write(data);
+  // close the file:
+  myFile.close(); 
+
+
 }
+
 
 
 
