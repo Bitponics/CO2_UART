@@ -5,7 +5,7 @@
 //Michael Doherty - Bitponics
 //Crys Moore
 //2.7.12
-//updated 4.5.12
+//updated 4.10.12
 
 
 
@@ -40,8 +40,8 @@
 #include "RTClib.h"
 #include "Adafruit_LEDBackpack.h"
 #include "Adafruit_GFX.h"
-//#include <SD.h>
-#include <SdFat.h>
+#include <SD.h>
+//#include <SdFat.h>
 
 
 
@@ -49,9 +49,10 @@
 SoftwareSerial mySerial(A0, A1); // RX, TX respectively
 Adafruit_7segment matrix = Adafruit_7segment();
 RTC_DS1307 RTC;
-//File dataFile = SD.open("datalog1.csv", FILE_WRITE);
-SdFat sd;
-SdFile myFile;
+//SdFat sd;
+//SdFile myFile;
+
+#define calibrationTime 60000 //warm up time for C02 sensor (3min = 180sec)
 
 
 
@@ -61,22 +62,24 @@ byte cmd[9] = {
 char response[9]; 
 const int chipSelectPin = 10;
 unsigned long time;
-unsigned long calibrationTime = 60000; //warm up time for C02 sensor (3min = 180sec)
-float lipoCalibration=.685; //was 1.1
+
+const float lipoCalibration=.685; //was 1.1
 float voltage;
 int BatteryValue;
-float threshold = 4.0; //battery threshold
+const float threshold = 4.0; //battery threshold
 boolean logging = true; 
 char userCmd;
 char timeStamp[20];
 String ppmString = " ";
 //////////////////////////////////////////////////////////// SETUP
-void setup() 
-{
-   sdCardSetup();
+void setup() {
+
+  //sdCardSetup();//sdFormatter setup
+  Serial.begin(9600);
   analogReference(INTERNAL); 
   pinMode(A2,INPUT);
   mySerial.begin(9600);
+
   matrix.begin(0x70);
   Wire.begin();
   RTC.begin();
@@ -111,10 +114,7 @@ void loop()
   //READ VALUE FROM LIPO, CONVERT TO VOLTAGE
   BatteryValue = analogRead(A2);
   voltage = BatteryValue * (lipoCalibration / 1024)* (10+2)/2;  //Voltage divider 
-  //  Serial.print("Battery Voltage -> ");
-  //  Serial.print(voltage);
-  //  Serial.print("V   ");
-  //  Serial.println();
+
 
   if (voltage < threshold)
   {
@@ -124,7 +124,6 @@ void loop()
   }
   else if (millis() < calibrationTime)
   { 
-    matrix.print(0xB00B, HEX);
     matrix.println((calibrationTime - millis())/1000);
     matrix.writeDisplay(); 
     Serial.println((calibrationTime - millis())/1000);
@@ -136,11 +135,13 @@ void loop()
     matrix.println(ppm);  //print c02 readings to SD
     matrix.writeDisplay();
 
+
     if (logging )
     {
 
       sprintf(timeStamp,"%04i-%02i-%02iT%02i:%02i:%02i", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second()); 
       logData();
+      Serial.println(ppm);
     }
     else 
     {
@@ -148,8 +149,6 @@ void loop()
     }
   }
 }
-
-
 
 void serialEvent() {
 
@@ -163,7 +162,7 @@ void serialEvent() {
       case 'r': 
         readSd(); 
         break;
-      case 'f': //delete the SD
+      case 'f': 
         //formatCard();
         break;
       }
@@ -172,26 +171,10 @@ void serialEvent() {
   }
 }
 
-/*void logData()
-  {
-
-  dataFile = SD.open("datalog1.csv", FILE_WRITE);
-  if (dataFile)
-  {
-    dataFile.print(ppmString);
-    dataFile.print(',');
-    dataFile.print(timeStamp);
-    dataFile.print(','); 
-    dataFile.print(voltage);
-    dataFile.println();
-    dataFile.close();   
-  }
-}*/
 
 void logData()
 {
 
-  //dataFile = SD.open("datalog1.csv", FILE_WRITE);
   if (!myFile.open("datalog1.csv", O_RDWR | O_CREAT | O_AT_END)) {
     sd.errorHalt("opening datalog1.csv for write failed");
   }
@@ -204,49 +187,21 @@ void logData()
   myFile.close();   
 }
 
-
-/*  void readSd()
-  {
-    File dataFile = SD.open("datalog1.csv");
-
-    if (dataFile) {
-      while (dataFile.available()) {
-        Serial.write(dataFile.read());
-      }
-      dataFile.close();
-    }  
-    // if the file isn't open, pop up an error:
-    else {
-      Serial.println("error opening datalog1.csv");
-    }
-  }
-  */
-  void readSd()
+void readSd()
 {
-  //  File dataFile = SD.open("datalog1.csv");
+
   if (!myFile.open("datalog1.csv", O_READ)) {
     sd.errorHalt("opening datalog1.csv for read failed");
-
-    /*if (dataFile) {
-     while (dataFile.available()) {
-     Serial.write(dataFile.read());
-     }
-     dataFile.close();
-     }  
-     // if the file isn't open, pop up an error:
-     else {
-     Serial.println("error opening datalog1.csv");
-     }*/
-
     // read from the file until there's nothing else in it:
     int data;
     while ((data = myFile.read()) > 0) Serial.write(data);
     // close the file:
     myFile.close();
-
-
   }
 }
+
+
+
 
 
 
